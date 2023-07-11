@@ -9,11 +9,11 @@ class MyResponder(Responder):
 
     def h_open_shift(self, msg, links=[]):
         if not len(links):
-            return 'Создали задачу про открытие смены https://st.yandex-team.ru/MARKETTPLSUP-110972'
+            return 'Создали задачу url'
 
     def h_close_shift(self, msg, links=[]):
         if not len(links):
-            return 'Создали задачу про закрытие смены https://st.yandex-team.ru/MARKETTPLSUP-110981'
+            return 'Создали задачу про закрытие url'
 
     def h_version(self, msg, links=[]):
         if not len(links):
