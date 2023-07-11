@@ -15,24 +15,22 @@ parser.add_argument("-m",  "--mode",                    help="operation mode", c
 parser.add_argument('-bm', '--base_model',              help='base model to use', default='RussianNLP/ruRoBERTa-large-rucola')
 parser.add_argument('-tf', '--telegram_file',           help='telegram messages dump file to use')
 parser.add_argument('-dl', '--date_limit',              help='date limit for messages to cluster')
-parser.add_argument('-nc', '--num_clusters',            help='number of clusters', default=20)
+parser.add_argument('-nc', '--num_clusters',            help='number of clusters', default=20, type=int)
 parser.add_argument('-o',  '--output_folder',           help='number of clusters', default='./samples_clustered')
 parser.add_argument('-s',  '--samples_folder',          help='number of clusters', default='./samples')
 parser.add_argument('-cf', '--clean_samples_folder',    help='clean samples folder', default=True)
 parser.add_argument('-f',  '--model_file',              help='local model file')
-parser.add_argument('-t',  '--test_file',               help='file with test examples'),
 parser.add_argument('-v',  '--verbose',                 help='verbose mode', action='store_true'),
-parser.add_argument('-p',  '--listen_port',             help='http port to listen on', default=8080)
-parser.add_argument('-ml', '--max_message_len',         help='maximum message len', default=1000)
+parser.add_argument('-p',  '--listen_port',             help='http port to listen on', default=8080, type=int)
+parser.add_argument('-ml', '--max_message_len',         help='maximum message len', default=1000, type=int)
+parser.add_argument('-cl', '--confidence_limit',        help='minimal prediction confidence', default=None, type=float)
+parser.add_argument('-def', '--default_label',          help='use default tag if confidence is below limit', default=None)
 
 args = parser.parse_args()
 config = vars(args)
 
 if config['mode'] in ['train', 'test', 'serve', 'history'] and config['model_file'] == None:
     parser.error('The --model_file argument is required')
-
-if config['mode'] in ['test'] and config['test_file'] == None:
-    parser.error('The --test_file argument is required')
 
 if config['mode'] == 'history' and config['telegram_file'] == None:
     parser.error('The --telegram_file argument is required')
@@ -50,43 +48,19 @@ else:
 if config['mode'] == 'train':
     ml = Ml(base_model=config['base_model'])
     ml.load_samples(config['samples_folder'])
-
     ml.train()
     log.info("Training complete, saving model to %s" % config['model_file'])
     ml.save(config['model_file'])
 # Тест на наборе предложение из файла
-elif config['mode'] == 'test' and config['test_file']:
+elif config['mode'] == 'test':
     ml = Ml()
     ml.load(config['model_file'])
-
-    col_ok = '\033[92m'
-    col_fail = '\033[91m'
-    col_end = '\033[0m'
-
-    correct = 0
-
-    f = open(config['test_file'])
-    test_lines = f.read().splitlines()
-
-    for item in test_lines:
-        parts = item.split(' ', 1)
-        cat = ml.cats(parts[1])
-
-        if cat[0] == parts[0]:
-            col = col_ok
-            correct += 1
-        else:
-            col = col_fail
-
-        print(f'[{col}{cat[0]}{col_end}] {parts[1]}')
-
-    p = round(correct * 100 / len(test_lines), 2) if correct else 0
-    print("\nTotal: {total} Correct: {correct} ({p}%)".format(total=len(test_lines), correct=correct, p=p))
-# Тест на истории из dump-файла telegram
+    ml.load_samples(config['samples_folder'], 'test')
+    ml.test(prob_limit=config['confidence_limit'], default_label_name=config['default_label'])
+# Тест на истории telegram
 elif config['mode'] == 'history':
     ml = Ml()
     ml.load(config['model_file'])
-
     resp = MyResponder()
     clusterer = Clusterer()
 
@@ -97,7 +71,7 @@ elif config['mode'] == 'history':
 
     for m in clusterer.messages:
         cats = ml.cats(m['msg'])
-        cat_name = cats[0]
+        cat_name = cats[0]['label']
         response = resp.respond(cat_name, m['msg_full'], m['links'])
 
         total_count += 1
@@ -128,8 +102,8 @@ elif config['mode'] == 'serve':
     @route("/cats", method=["POST"])
     def index(data: JSONBody):
         if 'text' in data and len(data['text']):
-            cats = ml.cats(data['text'])
-            return {'category': cats}
+            cats = ml.cats(data['text'], prob_limit=config['confidence_limit'], default_label_name=config['default_label'])
+            return {'category': cats['label']}
         else:
             raise HttpError(400, "Missing JSON body parameter: text")
 
@@ -139,7 +113,7 @@ elif config['mode'] == 'serve':
         resp = MyResponder()
 
         if 'text' in data and len(data['text']):
-            cats = ml.cats(data['text'])
+            cats = ml.cats(data['text'], prob_limit=config['confidence_limit'], default_label_name=config['default_label'])
             if m := re.search("(https?://[^\s]+)", data['text']):
                 urls = m[1]
                 text = re.sub("(https?://[^\s]+)", '', data['text'])
@@ -147,7 +121,7 @@ elif config['mode'] == 'serve':
                 urls = []
                 text = data['text']
 
-            response = resp.respond(cats[0], text, urls)
+            response = resp.respond(cats[0]['label'], text, urls)
             return {'response': response}
         else:
             raise HttpError(400, "Missing JSON body parameter: text")
