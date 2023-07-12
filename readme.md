@@ -24,8 +24,8 @@
 #### 4. Обучение модели:
     pipenv run python main.py -m train -s ./samples -f model.joblib -v
 
-#### 5. Тест на файле с примерами:
-    pipenv run python main.py -m test -t test.txt -f model.joblib -v
+#### 5. Тест на образцах для каждой категории:
+    pipenv run python main.py -m test -s ./samples -f model.joblib -v
 
 #### 6. Тест на дампе телеграма:
     pipenv run python main.py -m history -f model.joblib -dl 01-01-2023 -tf test_dump.json
