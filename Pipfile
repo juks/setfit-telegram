@@ -9,6 +9,7 @@ datasets = "*"
 sentence-transformers = "*"
 setfit = "*"
 pymorphy2 = "*"
+dataset="*"
 
 [dev-packages]
 
